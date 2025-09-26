@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scanner de Pacote → Rota</title>
+  <link rel="preconnect" href="https://unpkg.com"/>
+  <style>
+    :root{--bg:#0b0f14;--card:#121822;--muted:#93a1b1;--ok:#27ae60;--warn:#e67e22;--err:#e74c3c;--ink:#e6edf3;--accent:#2d9cdb}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0f14,#0f1622);color:var(--ink)}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    h1{font-size:22px;margin:0}
+    .card{background:var(--card);border:1px solid #1f2836;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .grid{display:grid;gap:16px}
+    @media (min-width:900px){.grid{grid-template-columns:1.2fr .8fr}}
+    label{font-weight:600}
+    input[type=file],select,button,.pill,input[type=text],.num{border-radius:12px;border:1px solid #263248;background:#0c121b;color:var(--ink);padding:10px 12px}
+    button{cursor:pointer}
+    button.primary{background:var(--accent);border:none;color:white;font-weight:700}
+    .pill{display:inline-flex;gap:8px;align-items:center}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .muted{color:var(--muted)}
+    .status{border-radius:16px;padding:14px;font-size:18px;font-weight:700;margin-top:8px}
+    .ok{background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.35)}
+    .err{background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.35)}
+    .warn{background:rgba(230,126,34,.12);border:1px solid rgba(230,126,34,.35)}
+    .big{font-size:28px}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;background:#0c121b;border:1px solid #263248;border-radius:8px;padding:2px 6px}
+    .table{width:100%;border-collapse:collapse;margin-top:8px}
+    .table th,.table td{border-bottom:1px solid #243043;padding:8px 6px;text-align:left}
+    .hint{font-size:13px;margin-top:6px;color:var(--muted)}
+    .footer{margin-top:24px;font-size:12px;color:var(--muted)}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .center{display:flex;align-items:center;justify-content:center}
+    .hidden{display:none}
+  </style>
+  <!-- Libs -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Scanner de Pacote → Rota</h1>
+      <div class="muted">Carregue um CSV (2 colunas) e escaneie códigos para ver a rota.</div>
+    </header>
+
+    <div class="grid">
+      <!-- Coluna esquerda: Config e Scanner -->
+      <section class="card">
+        <div class="row">
+          <div>
+            <label for="csv">Planilha (CSV)</label><br />
+            <input id="csv" type="file" accept=".csv,text/csv" />
+            <div class="hint">Formato: "ID do pacote,ID da rota" (sem cabeçalho também funciona).</div>
+          </div>
+          <div>
+            <label>Mapeamento das colunas</label>
+            <div class="split">
+              <div>
+                <span class="muted">Coluna do <b>ID do pacote</b></span>
+                <select id="col-pacote"></select>
+              </div>
+              <div>
+                <span class="muted">Coluna do <b>ID da rota</b></span>
+                <select id="col-rota"></select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px">
+          <button id="btn-start" class="primary">Iniciar câmera</button>
+          <button id="btn-stop">Parar câmera</button>
+          <label class="pill"><input type="checkbox" id="offline-cache"/> Cache offline (carregar tabela no navegador)</label>
+        </div>
+
+        <div id="scan-area" class="card" style="margin-top:12px;padding:8px">
+          <div id="reader" style="width:100%"></div>
+        </div>
+
+        <div id="resultado" class="status warn hidden">Aguardando escaneamento…</div>
+
+        <div class="row" style="margin-top:12px">
+          <input id="manual" type="text" placeholder="Ou digite/cole um ID de pacote" class="num" />
+          <button id="btn-lookup">Buscar rota</button>
+        </div>
+      </section>
+
+      <!-- Coluna direita: Dados carregados -->
+      <aside class="card">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <strong>Dados carregados</strong>
+            <div class="hint">Mostrando até 5 exemplos</div>
+          </div>
+          <div class="muted"><span id="count">0</span> registros</div>
+        </div>
+        <table class="table" id="preview">
+          <thead>
+            <tr><th>ID do pacote</th><th>ID da rota</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="footer">
+          Dica: normalizamos espaços e letras (trim). Certifique-se de que o código escaneado corresponda ao valor na planilha.
+        </div>
+      </aside>
+    </div>
+
+    <div class="footer">
+      Compatível com QR e códigos de barras mais comuns (via <span class="kbd">html5-qrcode</span>). Para códigos 1D específicos não suportados, adapte o leitor.
+    </div>
+  </div>
+
+  <script>
+    // Estado
+    let indexMap = new Map(); // pacote -> rota
+    let headers = [];
+    let scanner = null; // Html5QrcodeScanner
+    let currentCameraRunning = false;
+
+    const el = (id)=>document.getElementById(id);
+    const resultado = el('resultado');
+
+    function normalize(x){
+      return String(x || '').trim();
+    }
+
+    function setStatus(msg, type){
+      resultado.classList.remove('hidden','ok','err','warn');
+      resultado.classList.add(type||'warn');
+      resultado.textContent = msg;
+    }
+
+    function renderPreview(rows){
+      const tbody = document.querySelector('#preview tbody');
+      tbody.innerHTML = '';
+      rows.slice(0,5).forEach(r=>{
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td');
+        const td2 = document.createElement('td');
+        td1.textContent = r.pacote;
+        td2.textContent = r.rota;
+        tr.appendChild(td1); tr.appendChild(td2);
+        tbody.appendChild(tr);
+      });
+      el('count').textContent = indexMap.size;
+    }
+
+    function populateSelects(){
+      const selP = el('col-pacote');
+      const selR = el('col-rota');
+      selP.innerHTML = '';
+      selR.innerHTML = '';
+      headers.forEach((h,i)=>{
+        const o1 = new Option(h || \`Coluna \${i+1}\`, i);
+        const o2 = new Option(h || \`Coluna \${i+1}\`, i);
+        selP.add(o1); selR.add(o2);
+      });
+      // Heurística: primeira coluna = pacote, segunda = rota
+      selP.selectedIndex = 0;
+      selR.selectedIndex = headers.length>1?1:0;
+    }
+
+    function rebuildIndex(data, colPacote, colRota){
+      indexMap = new Map();
+      const sample = [];
+      data.forEach(row=>{
+        const p = normalize(row[colPacote]);
+        const r = normalize(row[colRota]);
+        if(p){ indexMap.set(p, r || '');
+          if(sample.length<5) sample.push({pacote:p, rota:r});
+        }
+      });
+      renderPreview(sample);
+      if(el('offline-cache').checked){
+        try{
+          const payload = {headers, colPacote, colRota, items: Array.from(indexMap.entries())};
+          localStorage.setItem('pacote_rota_cache', JSON.stringify(payload));
+        }catch(e){/* ignore quota */}
+      }
+    }
+
+    function lookup(code){
+      const key = normalize(code);
+      if(!key){ setStatus('Código vazio.', 'warn'); return; }
+      const rota = indexMap.get(key);
+      if(rota !== undefined){
+        setStatus(\`Rota: \${rota || '(sem rota definida)'}\`, 'ok');
+      }else{
+        setStatus('Código não encontrado na planilha.', 'err');
+      }
+    }
+
+    // CSV upload
+    el('csv').addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      Papa.parse(file, {
+        complete: (res)=>{
+          const data = res.data.filter(r=>r && r.length && r.some(c=>String(c).trim()!==''));
+          if(!data.length){ setStatus('CSV vazio.', 'err'); return; }
+          // Detecta cabeçalho: se primeira linha tem qualquer célula não numérica repetível, assume header
+          const first = data[0];
+          const looksLikeHeader = first.some(x => isNaN(Number(String(x).trim())) && String(x).trim().length>0);
+          let rows = data;
+          if(looksLikeHeader){
+            headers = first.map(h=>String(h).trim());
+            rows = data.slice(1);
+          }else{
+            headers = first.map((_,i)=>\`Coluna \${i+1}\`);
+          }
+          populateSelects();
+          rebuildIndex(rows, el('col-pacote').selectedIndex, el('col-rota').selectedIndex);
+          setStatus('Planilha carregada. Pronto para escanear.', 'ok');
+        },
+        error: ()=>setStatus('Falha ao ler o CSV.', 'err')
+      });
+    });
+
+    el('btn-lookup').addEventListener('click', ()=>lookup(el('manual').value));
+    el('manual').addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') lookup(ev.target.value); });
+
+    // Cache offline restore
+    (function restoreCache(){
+      try{
+        const cached = localStorage.getItem('pacote_rota_cache');
+        if(!cached) return;
+        const obj = JSON.parse(cached);
+        headers = obj.headers || [];
+        populateSelects();
+        // Restaura selects
+        if(typeof obj.colPacote==='number') el('col-pacote').selectedIndex = obj.colPacote;
+        if(typeof obj.colRota==='number') el('col-rota').selectedIndex = obj.colRota;
+        indexMap = new Map(obj.items || []);
+        renderPreview(Array.from(indexMap.entries()).slice(0,5).map(([p,r])=>({pacote:p, rota:r})));
+        setStatus('Cache offline carregado. Você pode escanear mesmo sem enviar CSV agora.', 'ok');
+        el('offline-cache').checked = true;
+      }catch(e){/* ignore */}
+    })();
+
+    // Scanner
+    function startScanner(){
+      if(currentCameraRunning) return;
+      const config = { fps: 10, qrbox: {width: 320, height: 200}, rememberLastUsedCamera: true, aspectRatio: 1.7778, showTorchButtonIfSupported: true, supportedScanTypes: [ Html5QrcodeScanType.SCAN_TYPE_CAMERA ] };
+      const onScanSuccess = (decodedText, decodedResult) => {
+        lookup(decodedText);
+      };
+      const onScanError = (err) => {
+        // silencioso para performance
+      };
+      // Usa o componente com UI pronta
+      scanner = new Html5QrcodeScanner('reader', config, false);
+      scanner.render(onScanSuccess, onScanError);
+      currentCameraRunning = true;
+      setStatus('Câmera ativa. Aponte para o código.', 'warn');
+    }
+
+    function stopScanner(){
+      if(scanner){
+        scanner.clear().catch(()=>{});
+        scanner = null;
+      }
+      currentCameraRunning = false;
+      setStatus('Câmera parada.', 'warn');
+      el('reader').innerHTML = '';
+    }
+
+    el('btn-start').addEventListener('click', startScanner);
+    el('btn-stop').addEventListener('click', stopScanner);
+  </script>
+</body>
+</html>
