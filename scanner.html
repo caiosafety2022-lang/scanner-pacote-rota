@@ -1,346 +1,373 @@
 <!DOCTYPE html>
-<html lang="pt-br">
-<hea
-  d>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scanner 1D → Rota (Lotes/Feedback)</title>
-  <link rel="preconnect" href="https://unpkg.com"/>
-  <style>
-    :root{--bg:#0b0f14;--card:#121822;--muted:#93a1b1;--ok:#27ae60;--warn:#e67e22;--err:#e74c3c;--ink:#e6edf3;--accent:#2d9cdb}
-    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0f14,#0f1622);color:var(--ink)}
-    .wrap{max-width:1200px;margin:0 auto;padding:24px}
-    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
-    h1{font-size:22px;margin:0}
-    .card{background:var(--card);border:1px solid #1f2836;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    .grid{display:grid;gap:16px}
-    @media (min-width:1100px){.grid{grid-template-columns:1.4fr .6fr}}
-    label{font-weight:600}
-    input[type=file],button,.pill,input[type=text],.num{border-radius:12px;border:1px solid #263248;background:#0c121b;color:var(--ink);padding:10px 12px}
-    button{cursor:pointer}
-    button.primary{background:var(--accent);border:none;color:white;font-weight:700}
-    .pill{display:inline-flex;gap:8px;align-items:center}
-    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    .muted{color:var(--muted)}
-    .status{border-radius:16px;padding:14px;font-size:18px;font-weight:700;margin-top:8px}
-    .ok{background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.35)}
-    .err{background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.35)}
-    .warn{background:rgba(230,126,34,.12);border:1px solid rgba(230,126,34,.35)}
-    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;background:#0c121b;border:1px solid #263248;border-radius:8px;padding:2px 6px}
-    .table{width:100%;border-collapse:collapse;margin-top:8px}
-    .table th,.table td{border-bottom:1px solid #243043;padding:8px 6px;text-align:left}
-    .hint{font-size:13px;margin-top:6px;color:var(--muted)}
-    .footer{margin-top:24px;font-size:12px;color:var(--muted)}
-    .hidden{display:none}
-    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;min-width:280px;max-width:90vw;padding:14px 16px;border-radius:14px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.35);z-index:9999}
-    .toast.ok{background:rgba(39,174,96,.95);color:white}
-    .toast.err{background:rgba(231,76,60,.95);color:white}
-    .toast.warn{background:rgba(230,126,34,.95);color:white}
-    video{width:100%;max-height:360px;background:#000;border-radius:12px}
-    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
-    .badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#0c121b;border:1px solid #2a3650;color:#9fb0c8;font-size:12px}
-  </style>
-  <!-- CSV parser -->
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-  <!-- Fallback 1D: Quagga2 -->
-  <script src="https://unpkg.com/@ericblade/quagga2@2.0.0/dist/quagga.min.js"></script>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Photo Scan → Route (1D Barcodes)</title>
+<link rel="preconnect" href="https://unpkg.com"/>
+<style>
+  :root{--bg:#0b0f14;--card:#121822;--ink:#e6edf3;--muted:#9fb0c8;--ok:#1db954;--err:#ff5c5c;--accent:#2d9cdb}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0f14,#0f1622);color:var(--ink)}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  h1{font-size:20px;margin:0 0 10px}
+  .card{background:var(--card);border:1px solid #1d2838;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .grid{display:grid;gap:16px}
+  @media(min-width:1000px){.grid{grid-template-columns:1.4fr .6fr}}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=file],button,.pill,input[type=text]{border-radius:12px;border:1px solid #2a3750;background:#0c121b;color:var(--ink);padding:10px 12px}
+  button.primary{background:var(--accent);border:none;color:#fff;font-weight:700;cursor:pointer}
+  .status{margin-top:10px;border-radius:12px;padding:12px;font-weight:700}
+  .ok{background:rgba(29,185,84,.14);border:1px solid rgba(29,185,84,.35)}
+  .err{background:rgba(255,92,92,.14);border:1px solid rgba(255,92,92,.35)}
+  .warn{background:rgba(45,156,219,.14);border:1px solid rgba(45,156,219,.35)}
+  .muted{color:var(--muted)}
+  .hint{font-size:13px;color:var(--muted)}
+  .table{width:100%;border-collapse:collapse;margin-top:8px}
+  .table th,.table td{border-bottom:1px solid #243043;padding:6px;text-align:left}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;min-width:260px;max-width:90vw;padding:12px 14px;border-radius:12px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.35);z-index:9999}
+  .toast.ok{background:rgba(29,185,84,.98);color:#fff}
+  .toast.err{background:rgba(255,92,92,.98);color:#fff}
+  video{width:100%;border-radius:12px;background:#000}
+  .stage{position:relative}
+  .stage.landscape-hint::after{
+    content:'Rotate your phone to landscape for better 1D scanning';
+    position:absolute;left:50%;top:10px;transform:translateX(-50%);font-size:12px;
+    background:rgba(0,0,0,.55);padding:6px 10px;border-radius:999px
+  }
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#0c121b;border:1px solid #2a3650;color:#9fb0c8;font-size:12px}
+</style>
+<!-- CSV -->
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<!-- Quagga2 fallback for still-image decoding -->
+<script src="https://unpkg.com/@ericblade/quagga2@2.0.0/dist/quagga.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>Scanner 1D → Rota (Lotes)</h1>
-      <div class="muted">
-        CSV fixo (2 colunas): <b>A = ID do pacote</b>, <b>B = ID da rota</b> — Code128/39/EAN/UPC/ITF.
+<div class="wrap">
+  <h1>Photo Scan → Route (1D)</h1>
+  <div class="muted">CSV (2 columns): <b>A = Package ID</b>, <b>B = Route ID</b>. Take a photo and then scan it. 1D formats: Code128/39, EAN/UPC, ITF, Codabar. (QR supported too.)</div>
+
+  <div class="grid">
+    <!-- Left -->
+    <section class="card">
+      <div class="row">
+        <div>
+          <label>Mapping CSV</label><br/>
+          <input id="csv" type="file" accept=".csv,text/csv" />
+          <div class="hint">Comma-separated. With or without header.</div>
+        </div>
       </div>
-    </header>
 
-    <div class="grid">
-      <section class="card">
-        <div class="row">
-          <div>
-            <label for="csv">Planilha (CSV)</label><br />
-            <input id="csv" type="file" accept=".csv,text/csv" />
-            <div class="hint">Separador: vírgula. Com ou sem cabeçalho.</div>
-          </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btn-start" class="primary">Start camera</button>
+        <button id="btn-capture">📸 Capture & scan</button>
+        <label class="pill"><input id="file-input" type="file" accept="image/*" capture="environment" /> Upload photo & scan</label>
+        <button id="btn-stop">Stop camera</button>
+        <span id="counter" class="badge">0 scanned</span>
+      </div>
+
+      <div class="card stage" id="stage" style="margin-top:12px;padding:8px">
+        <video id="video" playsinline muted></video>
+        <canvas id="canvas" style="display:none"></canvas>
+      </div>
+
+      <div id="status" class="status warn">Waiting for photo…</div>
+
+      <div class="row" style="margin-top:10px">
+        <input id="manual" type="text" placeholder="Or paste a Package ID" />
+        <button id="btn-lookup">Lookup</button>
+      </div>
+    </section>
+
+    <!-- Right -->
+    <aside class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <strong>Loaded data</strong>
+          <div class="hint">Up to 5 examples</div>
         </div>
+        <div class="muted"><span id="count">0</span> records</div>
+      </div>
+      <table class="table" id="preview">
+        <thead><tr><th>Package ID</th><th>Route ID</th></tr></thead>
+        <tbody></tbody>
+      </table>
 
-        <div class="controls">
-          <button id="btn-start" class="primary">Iniciar câmera</button>
-          <button id="btn-stop">Parar câmera</button>
-          <label class="pill"><input type="checkbox" id="offline-cache"/> Cache offline</label>
-          <label class="pill"><input type="checkbox" id="allow-dupes" checked/> Permitir leituras repetidas</label>
-          <label class="pill"><input type="checkbox" id="beep" checked/> Beep</label>
-          <label class="pill"><input type="checkbox" id="vibrate" checked/> Vibrar</label>
-          <label class="pill"><input type="checkbox" id="tts"/> Falar rota</label>
-        </div>
-
-        <div id="scan-area" class="card" style="margin-top:12px;padding:8px">
-          <video id="video" playsinline muted></video>
-        </div>
-
-        <div id="resultado" class="status warn hidden">Aguardando escaneamento…</div>
-
-        <div class="row" style="margin-top:12px">
-          <input id="manual" type="text" placeholder="Ou digite/cole um ID de pacote" class="num" />
-          <button id="btn-lookup">Buscar rota</button>
-          <span id="counter" class="badge">0 lidos</span>
-        </div>
-      </section>
-
-      <aside class="card">
-        <div class="row" style="justify-content:space-between">
-          <div>
-            <strong>Dados carregados</strong>
-            <div class="hint">Mostrando até 5 exemplos</div>
-          </div>
-          <div class="muted"><span id="count">0</span> registros</div>
-        </div>
-        <table class="table" id="preview">
-          <thead><tr><th>ID do pacote</th><th>ID da rota</th></tr></thead>
+      <div style="margin-top:16px">
+        <strong>Recent history</strong>
+        <div class="hint">Last 15 scans</div>
+        <table class="table" id="history">
+          <thead><tr><th>Time</th><th>Code</th><th>Route</th><th>Status</th></tr></thead>
           <tbody></tbody>
         </table>
-
-        <div style="margin-top:16px">
-          <strong>Histórico recente</strong>
-          <div class="hint">Últimos 15 escaneamentos</div>
-          <table class="table" id="history">
-            <thead><tr><th>Quando</th><th>Pacote</th><th>Rota</th><th>Status</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </aside>
-    </div>
-
-    <div class="footer">
-      Requer HTTPS (GitHub Pages) ou localhost. Verifique permissões no cadeado 🔒. Iluminação ajuda muito em 1D.
-    </div>
+      </div>
+    </aside>
   </div>
 
-  <div id="toast" class="toast hidden"></div>
+  <div class="hint" style="margin-top:10px">
+    Tips: hold phone in <b>landscape</b>, fill the frame with the barcode, and keep lighting even.
+  </div>
+</div>
 
-  <script>
-    let indexMap = new Map(); // pacote -> rota
-    const el = (id)=>document.getElementById(id);
-    const resultado = el('resultado');
-    const video = el('video');
-    let stream = null;
-    let usingBarcodeDetector = false;
-    let detectLoop = null;
-    let quaggaRunning = false;
-    let history = [];
-    let readCount = 0;
-    let lastSeen = new Map(); // code -> timestamp
+<div id="toast" class="toast" style="display:none"></div>
 
-    function setStatus(msg, type){
-      resultado.className = 'status ' + (type||'warn');
-      resultado.textContent = msg;
-      resultado.classList.remove('hidden');
-    }
-    function normalize(x){ return String(x||'').trim(); }
+<script>
+  // --- State ---
+  let indexMap = new Map();   // package -> route
+  let videoStream = null;
+  let scannedCount = 0;
+  let history = [];
 
-    function renderPreview(rows){
-      const tbody = document.querySelector('#preview tbody');
-      tbody.innerHTML = '';
-      rows.slice(0,5).forEach(r=>{
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${r.pacote}</td><td>${r.rota}</td>`;
-        tbody.appendChild(tr);
-      });
-      el('count').textContent = indexMap.size;
-    }
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status');
+  const toastEl = $('toast');
+  const videoEl = $('video');
+  const canvasEl = $('canvas');
+  const stageEl = $('stage');
 
-    function renderHistory(){
-      const tbody = document.querySelector('#history tbody');
-      tbody.innerHTML = '';
-      history.slice(-15).reverse().forEach(h=>{
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${new Date(h.t).toLocaleTimeString()}</td><td>${h.code}</td><td>${h.rota||'-'}</td><td>${h.ok?'OK':'ERRO'}</td>`;
-        tbody.appendChild(tr);
-      });
-      el('counter').textContent = `${readCount} lidos`;
-    }
+  function setStatus(msg, kind='warn'){
+    statusEl.className = 'status ' + kind;
+    statusEl.textContent = msg;
+  }
+  function toast(msg, kind='ok'){
+    toastEl.textContent = msg;
+    toastEl.className = 'toast ' + kind;
+    toastEl.style.display = 'block';
+    setTimeout(()=> toastEl.style.display='none', 1400);
+  }
+  function beep(){
+    try{
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type='square'; o.frequency.value=880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime+0.01);
+      o.start();
+      setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 120);
+    }catch(e){}
+  }
 
-    function rebuildIndex(data){
-      indexMap = new Map();
-      const sample = [];
-      data.forEach(row=>{
-        const p = normalize(row[0]);
-        const r = normalize(row[1]);
-        if(p){ indexMap.set(p, r||''); if(sample.length<5) sample.push({pacote:p, rota:r}); }
-      });
-      renderPreview(sample);
-      if(el('offline-cache').checked){
-        try{ localStorage.setItem('pacote_rota_cache', JSON.stringify({items:[...indexMap.entries()]})); }catch(e){}
-      }
-    }
+  function renderPreview(rows){
+    const tb = $('preview').querySelector('tbody'); tb.innerHTML='';
+    rows.slice(0,5).forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.pkg}</td><td>${r.route}</td>`;
+      tb.appendChild(tr);
+    });
+    $('count').textContent = indexMap.size;
+  }
+  function renderHistory(){
+    const tb = $('history').querySelector('tbody'); tb.innerHTML='';
+    history.slice(-15).reverse().forEach(h=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${new Date(h.t).toLocaleTimeString()}</td><td>${h.code}</td><td>${h.route||'-'}</td><td>${h.ok?'OK':'ERROR'}</td>`;
+      tb.appendChild(tr);
+    });
+    $('counter').textContent = `${scannedCount} scanned`;
+  }
 
-    // Feedback helpers
-    function beep(){
-      if(!el('beep').checked) return;
-      try{
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.type='square'; o.frequency.value=880; o.connect(g); g.connect(ctx.destination);
-        g.gain.setValueAtTime(0.0001, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime+0.01);
-        o.start();
-        setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 120);
-      }catch(e){}
-    }
-    function vibrate(){ if(el('vibrate').checked && navigator.vibrate) navigator.vibrate(60); }
-    function speak(text){
-      if(!el('tts').checked) return;
-      try{ const u = new SpeechSynthesisUtterance(text); u.lang='pt-BR'; window.speechSynthesis.speak(u); }catch(e){}
-    }
-    function toast(msg, type){
-      const t = el('toast');
-      t.textContent = msg;
-      t.className = 'toast ' + (type||'warn');
-      t.classList.remove('hidden');
-      setTimeout(()=>{ t.classList.add('hidden'); }, 1400);
-    }
+  function normalize(x){ return String(x||'').trim(); }
 
-    function onDetected(codeRaw){
-      const code = normalize(codeRaw);
-      if(!code) return;
-      const now = Date.now();
-      const allowDupes = el('allow-dupes').checked;
-      const last = lastSeen.get(code) || 0;
-      if(!allowDupes && (now - last) < 1200){ return; } // evita repetição do mesmo código em ~1.2s
-      lastSeen.set(code, now);
-
-      const rota = indexMap.get(code);
-      if(rota !== undefined){
-        setStatus(`Rota: ${rota}`, 'ok');
-        toast(`✔ Pacote ${code} → ${rota}`, 'ok');
-        beep(); vibrate(); speak(`Rota ${rota}`);
-        history.push({t:now, code, rota, ok:true}); readCount++;
-      }else{
-        setStatus('Código não encontrado na planilha.', 'err');
-        toast(`✖ ${code} não encontrado`, 'err');
-        beep();
-        history.push({t:now, code, rota:null, ok:false}); readCount++;
-      }
-      renderHistory();
-    }
-
-    function lookupManual(){ onDetected(el('manual').value); }
-
-    // CSV
-    el('csv').addEventListener('change', (e)=>{
-      const file = e.target.files?.[0]; if(!file) return;
-      Papa.parse(file, { complete: (res)=>{
+  // --- CSV load (A = package, B = route) ---
+  $('csv').addEventListener('change', (e)=>{
+    const file = e.target.files?.[0]; if(!file) return;
+    Papa.parse(file, {
+      complete: (res)=>{
         const data = res.data.filter(r=>r && r.length && r.some(c=>String(c).trim()!==''));
-        if(!data.length){ setStatus('CSV vazio.', 'err'); return; }
+        if(!data.length){ setStatus('CSV is empty.', 'err'); return; }
         const first = data[0];
         const looksLikeHeader = first.some(x => isNaN(Number(String(x).trim())) && String(x).trim().length>0);
         const rows = looksLikeHeader ? data.slice(1) : data;
-        rebuildIndex(rows);
-        setStatus('Planilha carregada. Pronto para escanear.', 'ok');
-      }, error: ()=>setStatus('Falha ao ler o CSV.', 'err') });
-    });
-
-    el('btn-lookup').addEventListener('click', lookupManual);
-    el('manual').addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') lookupManual(); });
-
-    // Restore cache
-    (function(){ try{
-      const cached = JSON.parse(localStorage.getItem('pacote_rota_cache')||'null');
-      if(cached && cached.items){
-        indexMap = new Map(cached.items);
-        renderPreview(Array.from(indexMap.entries()).slice(0,5).map(([p,r])=>({pacote:p, rota:r})));
-        setStatus('Cache offline carregado. Você pode escanear mesmo sem enviar CSV agora.', 'ok');
-        el('offline-cache').checked = true;
-      }
-    }catch(e){} })();
-
-    // CAMERA & SCAN (BarcodeDetector -> fallback Quagga)
-    async function startWithBarcodeDetector(){
-      const supportedFormats = (await window.BarcodeDetector.getSupportedFormats?.()) || [];
-      const wanted = ['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf','codabar'];
-      const formats = wanted.filter(f => supportedFormats.includes(f));
-      if(!formats.length) throw new Error('BarcodeDetector sem formatos 1D suportados.');
-
-      const detector = new BarcodeDetector({ formats });
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' } }, audio:false });
-      video.srcObject = stream;
-      await video.play();
-
-      usingBarcodeDetector = true;
-      const tick = async () => {
-        if(!usingBarcodeDetector) return;
-        try{
-          const barcodes = await detector.detect(video);
-          if(barcodes && barcodes.length){
-            const val = barcodes[0].rawValue || '';
-            if(val){ onDetected(val); }
-          }
-        }catch(e){ /* ignore */ }
-        detectLoop = requestAnimationFrame(tick);
-      };
-      tick();
-      setStatus('Câmera ativa (nativo). Escaneie códigos 1D em sequência.', 'warn');
-    }
-
-    let quaggaCallback = null;
-    function startWithQuagga(){
-      return new Promise((resolve, reject)=>{
-        const config = {
-          inputStream : {
-            name : 'Live',
-            type : 'LiveStream',
-            target: document.querySelector('#scan-area'),
-            constraints: { facingMode: 'environment', aspectRatio: { min: 1.3, max: 2.5 } }
-          },
-          locator: { patchSize: 'medium', halfSample: true },
-          numOfWorkers: navigator.hardwareConcurrency ? Math.max(1, navigator.hardwareConcurrency - 1) : 2,
-          decoder : { readers : ['code_128_reader','code_39_reader','ean_reader','ean_8_reader','upc_reader','upc_e_reader','itf_reader','codabar_reader'] },
-          locate: true
-        };
-        Quagga.init(config, (err)=>{
-          if(err){ reject(err); return; }
-          Quagga.start();
-          quaggaCallback = (result)=>{
-            const code = result?.codeResult?.code;
-            if(code){ onDetected(code); }
-          };
-          Quagga.onDetected(quaggaCallback);
-          quaggaRunning = true;
-          setStatus('Câmera ativa (Quagga). Escaneie códigos 1D em sequência.', 'warn');
-          resolve();
+        indexMap = new Map();
+        const sample=[];
+        rows.forEach(r=>{
+          const pkg = normalize(r[0]), route = normalize(r[1]);
+          if(pkg){ indexMap.set(pkg, route||''); if(sample.length<5) sample.push({pkg, route}); }
         });
-      });
-    }
+        renderPreview(sample);
+        setStatus('CSV loaded. Take a photo then scan.', 'ok');
+      },
+      error: ()=> setStatus('Failed to read CSV.', 'err')
+    });
+  });
 
-    async function startCamera(){
+  // --- Camera start/stop (landscape preference) ---
+  async function startCamera(){
+    try{
+      // Hint: try to lock landscape (supported on some browsers)
       try{
-        await stopCamera();
-        if('BarcodeDetector' in window){
-          try { await startWithBarcodeDetector(); return; } catch(e){ /* fallback */ }
+        if(screen.orientation && screen.orientation.lock){
+          await screen.orientation.lock('landscape');
         }
-        await startWithQuagga();
-      }catch(err){
-        console.error(err);
-        setStatus('Erro ao iniciar câmera. Verifique permissões (cadeado 🔒) e tente novamente.', 'err');
+      }catch(e){ /* iOS Safari/Chrome may not support orientation lock */ }
+
+      // Prefer 16:9 landscape stream
+      const constraints = {
+        video: {
+          facingMode: { ideal:'environment' },
+          width: { ideal: 1920 },
+          height:{ ideal: 1080 },
+          aspectRatio: { ideal: 16/9 }
+        },
+        audio:false
+      };
+      videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+      videoEl.srcObject = videoStream;
+      await videoEl.play();
+
+      // Add landscape hint if device is portrait
+      if(window.innerHeight > window.innerWidth){
+        stageEl.classList.add('landscape-hint');
+      }else{
+        stageEl.classList.remove('landscape-hint');
       }
-    }
+      window.addEventListener('orientationchange', ()=>{
+        if(window.innerHeight > window.innerWidth) stageEl.classList.add('landscape-hint');
+        else stageEl.classList.remove('landscape-hint');
+      });
 
-    async function stopCamera(){
+      setStatus('Camera ready. Tap "Capture & scan".', 'warn');
+    }catch(err){
+      console.error(err);
+      setStatus(`Camera error: ${err.name || 'Unknown'}. Check permissions.`, 'err');
+    }
+  }
+  async function stopCamera(){
+    try{
+      if(videoStream){ videoStream.getTracks().forEach(t=>t.stop()); videoStream=null; }
+      videoEl.pause(); videoEl.srcObject=null;
+      setStatus('Camera stopped.', 'warn');
+    }catch(e){}
+  }
+  $('btn-start').addEventListener('click', startCamera);
+  $('btn-stop').addEventListener('click', stopCamera);
+
+  // --- Still-frame capture helper ---
+  function grabFrameToCanvas(){
+    if(!videoEl.videoWidth || !videoEl.videoHeight) throw new Error('Video not ready');
+    const w = videoEl.videoWidth, h = videoEl.videoHeight;
+    canvasEl.width = w; canvasEl.height = h;
+    const ctx = canvasEl.getContext('2d');
+    ctx.drawImage(videoEl, 0, 0, w, h);
+    return canvasEl;
+  }
+
+  // --- Decode with BarcodeDetector (preferred) or Quagga (fallback) ---
+  async function decodeFromCanvas(canvas){
+    // Try native (works on ImageBitmap/Canvas/Video/HTMLImageElement)
+    if('BarcodeDetector' in window){
       try{
-        if(detectLoop) cancelAnimationFrame(detectLoop);
-        usingBarcodeDetector = false;
-        if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-        if(quaggaRunning){
-          if(quaggaCallback){ Quagga.offDetected(quaggaCallback); quaggaCallback=null; }
-          Quagga.stop(); quaggaRunning=false;
+        const supported = await window.BarcodeDetector.getSupportedFormats?.() || [];
+        // Include 1D + QR
+        const wanted = ['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf','codabar','qr_code'];
+        const fmts = wanted.filter(f=>supported.includes(f));
+        if(fmts.length){
+          const det = new BarcodeDetector({ formats: fmts });
+          const res = await det.detect(canvas);
+          if(res && res.length){ return res[0].rawValue || ''; }
         }
-        if(video){ video.pause(); video.srcObject=null; }
-        setStatus('Câmera parada.', 'warn');
-      }catch(e){ /* ignore */ }
+      }catch(e){ /* fall through */ }
     }
+    // Fallback: Quagga decodeSingle with data URL
+    const dataUrl = canvas.toDataURL('image/png');
+    const code = await new Promise((resolve)=>{
+      Quagga.decodeSingle({
+        src: dataUrl,
+        numOfWorkers: 0, // required in decodeSingle
+        locate: true,
+        decoder: { readers: [
+          'code_128_reader','code_39_reader','ean_reader',
+          'ean_8_reader','upc_reader','upc_e_reader','itf_reader','codabar_reader'
+        ]}
+      }, (result)=>{
+        const v = result?.codeResult?.code || '';
+        resolve(v);
+      });
+    });
+    return code || '';
+  }
 
-    document.getElementById('btn-start').addEventListener('click', startCamera);
-    document.getElementById('btn-stop').addEventListener('click', stopCamera);
-  </script>
+  async function captureAndScan(){
+    try{
+      const canvas = grabFrameToCanvas();
+      await doDecode(canvas);
+    }catch(e){
+      setStatus('Capture failed. Is camera running?', 'err');
+    }
+  }
+
+  async function doDecode(sourceCanvasOrImage){
+    if(indexMap.size === 0){ setStatus('Load CSV first.', 'err'); return; }
+    setStatus('Scanning photo…', 'warn');
+    let code = '';
+    if(sourceCanvasOrImage instanceof HTMLCanvasElement){
+      code = await decodeFromCanvas(sourceCanvasOrImage);
+    }else{
+      // <img> path for uploaded file
+      const c = document.createElement('canvas');
+      c.width = sourceCanvasOrImage.naturalWidth || 1280;
+      c.height = sourceCanvasOrImage.naturalHeight || 720;
+      c.getContext('2d').drawImage(sourceCanvasOrImage, 0, 0, c.width, c.height);
+      code = await decodeFromCanvas(c);
+    }
+    if(code){
+      handleDetected(code);
+    }else{
+      setStatus('No barcode found in the photo.', 'err');
+      toast('No barcode found', 'err');
+      beep();
+      history.push({t:Date.now(), code:'(none)', route:null, ok:false});
+      scannedCount++;
+      renderHistory();
+    }
+  }
+
+  function handleDetected(codeRaw){
+    const code = String(codeRaw).trim();
+    const route = indexMap.get(code);
+    if(route !== undefined){
+      setStatus(`Route: ${route}`, 'ok');
+      toast(`✔ ${code} → ${route}`, 'ok');
+      beep();
+      if(navigator.vibrate) navigator.vibrate(60);
+      try{ const u = new SpeechSynthesisUtterance(`Route ${route}`); u.lang='en-US'; speechSynthesis.speak(u); }catch(e){}
+      history.push({t:Date.now(), code, route, ok:true});
+    }else{
+      setStatus('Code not found in CSV.', 'err');
+      toast(`✖ ${code} not found`, 'err');
+      beep();
+      history.push({t:Date.now(), code, route:null, ok:false});
+    }
+    scannedCount++;
+    renderHistory();
+  }
+
+  // Capture button
+  $('btn-capture').addEventListener('click', captureAndScan);
+
+  // Upload photo & scan
+  $('file-input').addEventListener('change', (e)=>{
+    const file = e.target.files?.[0]; if(!file) return;
+    const img = new Image();
+    img.onload = ()=> doDecode(img);
+    img.onerror = ()=> setStatus('Could not load image.', 'err');
+    img.src = URL.createObjectURL(file);
+  });
+
+  // Manual lookup
+  $('btn-lookup').addEventListener('click', ()=>{
+    const v = $('manual').value.trim();
+    if(!v) return;
+    handleDetected(v);
+  });
+  $('manual').addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') $('btn-lookup').click(); });
+
+  // Basic iOS permission hint
+  if(/iPad|iPhone|iPod/.test(navigator.userAgent)){
+    // Must be HTTPS and user gesture required to start camera
+    // If user denied before, they need to re-enable in iOS Settings
+  }
+</script>
 </body>
 </html>
+
