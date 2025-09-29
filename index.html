@@ -32,14 +32,13 @@
   .toast.err{background:rgba(255,92,92,.98);color:#fff}
 
   video{width:100%;border-radius:12px;background:#000}
-  .stage{position:relative;padding:0}       /* tighter card: no extra padding around video */
+  .stage{position:relative;padding:0}
   .stage.landscape-hint::after{
     content:'Rotate to landscape for better 1D scanning';
     position:absolute;left:50%;top:10px;transform:translateX(-50%);
     font-size:12px;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:999px;color:#fff
   }
 
-  /* Floating Capture button — glued to video */
   .capture-fab{
     position:absolute;left:50%;bottom:10px;transform:translateX(-50%);
     background:var(--accent);color:#fff;border:none;border-radius:999px;
@@ -72,7 +71,6 @@
 
       <div class="row" style="margin-top:8px">
         <button id="btn-start" class="primary">Start camera</button>
-        <!-- moved the capture button into the camera card -->
         <button id="btn-stop">Stop</button>
         <label class="pill"><input type="checkbox" id="toggle-cont" /> Continuous mode (auto-scan)</label>
         <label class="pill"><input type="checkbox" id="beep" checked/> Beep</label>
@@ -83,7 +81,6 @@
       <div class="card stage" id="stage" style="margin-top:12px">
         <video id="video" playsinline muted></video>
         <canvas id="canvas" style="display:none"></canvas>
-        <!-- Capture button glued to the video -->
         <button id="btn-capture" class="capture-fab" disabled>Capture & scan</button>
       </div>
 
@@ -95,28 +92,14 @@
       </div>
     </section>
 
-    <!-- Right: data & success history -->
+    <!-- Right: success history only -->
     <aside class="card">
-      <div class="row" style="justify-content:space-between">
-        <div>
-          <strong>Loaded data</strong>
-          <div class="hint">First 5 rows</div>
-        </div>
-        <div class="muted"><span id="count">0</span> records</div>
-      </div>
-      <table class="table" id="preview">
-        <thead><tr><th>Package ID</th><th>Route ID</th></tr></thead>
+      <strong>Successful scans</strong>
+      <div class="hint">Last 20 (errors are not logged)</div>
+      <table class="table" id="history">
+        <thead><tr><th>Time</th><th>Code</th><th>Route</th></tr></thead>
         <tbody></tbody>
       </table>
-
-      <div style="margin-top:16px">
-        <strong>Successful scans</strong>
-        <div class="hint">Last 20 (errors are not logged)</div>
-        <table class="table" id="history">
-          <thead><tr><th>Time</th><th>Code</th><th>Route</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
     </aside>
   </div>
 </div>
@@ -184,19 +167,11 @@
         const data = hasHeader ? rows.slice(1) : rows;
 
         map.clear();
-        const sample=[];
         for(const r of data){
           const pkg = normalize(r[0]), rt = normalize(r[1]);
-          if(pkg){ map.set(pkg, rt||''); if(sample.length<5) sample.push({pkg, rt}); }
+          if(pkg){ map.set(pkg, rt||''); }
         }
-        const tb = $('preview').querySelector('tbody'); tb.innerHTML='';
-        for(const s of sample){
-          const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${s.pkg}</td><td>${s.rt}</td>`;
-          tb.appendChild(tr);
-        }
-        $('count').textContent = map.size;
-        setStatus('CSV loaded. Start the camera.', 'ok');
+        setStatus(`CSV loaded (${map.size} records). Start the camera.`, 'ok');
       },
       error: ()=> setStatus('Failed to read CSV.', 'err')
     });
@@ -358,23 +333,15 @@
     if(route !== undefined){
       setStatus(`Route: ${route}`, 'ok');
       toast(`✔ ${code} → ${route}`, 'ok');
-      if($('beep').checked){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(), g=ctx.createGain(); o.type='square'; o.frequency.value=880; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime+0.01); o.start(); setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 110);}catch(e){} }
-      if($('vibrate').checked && navigator.vibrate) navigator.vibrate(50);
+      beep(); vibrate();
       addSuccess(code, route);
     }else{
       setStatus('Code not found in CSV.', 'err');
       toast(`✖ ${code} not found`, 'err');
-      if($('beep').checked){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(), g=ctx.createGain(); o.type='square'; o.frequency.value=440; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime+0.01); o.start(); setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 110);}catch(e){} }
+      beep(); // not logged
     }
   }
 
   // Manual lookup
   $('btn-lookup').addEventListener('click', ()=>{
-    const v = normalize($('manual').value);
-    if(!v) return;
-    handleDetected(v);
-  });
-  $('manual').addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') $('btn-lookup').click(); });
-</script>
-</body>
-</html>
+    const v = nor
