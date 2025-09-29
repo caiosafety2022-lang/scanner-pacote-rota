@@ -30,13 +30,24 @@
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;min-width:260px;max-width:90vw;padding:12px 14px;border-radius:12px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.35);z-index:9999}
   .toast.ok{background:rgba(29,185,84,.98);color:#fff}
   .toast.err{background:rgba(255,92,92,.98);color:#fff}
+
   video{width:100%;border-radius:12px;background:#000}
-  .stage{position:relative}
+  .stage{position:relative;padding:0}       /* tighter card: no extra padding around video */
   .stage.landscape-hint::after{
     content:'Rotate to landscape for better 1D scanning';
     position:absolute;left:50%;top:10px;transform:translateX(-50%);
-    font-size:12px;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:999px
+    font-size:12px;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:999px;color:#fff
   }
+
+  /* Floating Capture button — glued to video */
+  .capture-fab{
+    position:absolute;left:50%;bottom:10px;transform:translateX(-50%);
+    background:var(--accent);color:#fff;border:none;border-radius:999px;
+    padding:12px 18px;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);
+    display:flex;align-items:center;gap:8px;z-index:2;
+  }
+  .capture-fab:disabled{opacity:.55;cursor:not-allowed}
+  .capture-fab::before{content:'📸'}
 </style>
 <!-- CSV -->
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
@@ -46,7 +57,7 @@
 <body>
 <div class="wrap">
   <h1>Live Camera • Capture or Continuous → Route</h1>
-  <div class="muted">CSV (2 columns): <b>A = Package ID</b>, <b>B = Route ID</b>. Camera stays open. Press <b>Capture</b> to scan current frame, or enable <b>Continuous</b> (OFF by default). Only successful scans are logged.</div>
+  <div class="muted">CSV (2 columns): <b>A = Package ID</b>, <b>B = Route ID</b>. Camera stays open. Tap <b>Capture</b> (button on the video) or enable <b>Continuous</b> (OFF by default). Only successful scans are logged.</div>
 
   <div class="grid">
     <!-- Left: camera + actions -->
@@ -61,7 +72,7 @@
 
       <div class="row" style="margin-top:8px">
         <button id="btn-start" class="primary">Start camera</button>
-        <button id="btn-capture" disabled>📸 Capture & scan</button>
+        <!-- moved the capture button into the camera card -->
         <button id="btn-stop">Stop</button>
         <label class="pill"><input type="checkbox" id="toggle-cont" /> Continuous mode (auto-scan)</label>
         <label class="pill"><input type="checkbox" id="beep" checked/> Beep</label>
@@ -69,9 +80,11 @@
         <span id="successCount" class="badge">0 successes</span>
       </div>
 
-      <div class="card stage" id="stage" style="margin-top:12px;padding:8px">
+      <div class="card stage" id="stage" style="margin-top:12px">
         <video id="video" playsinline muted></video>
         <canvas id="canvas" style="display:none"></canvas>
+        <!-- Capture button glued to the video -->
+        <button id="btn-capture" class="capture-fab" disabled>Capture & scan</button>
       </div>
 
       <div id="status" class="status warn">Load the CSV, then start the camera.</div>
@@ -121,9 +134,9 @@
   let continuousOn = false;
   let scanningBusy = false;
   let contTimer = null;
-  const contIntervalMs = 400;      // scan cadence in Continuous mode
-  const dedupeMs = 1200;           // avoid same success within this window
-  const lastSuccessAt = new Map(); // code -> ts
+  const contIntervalMs = 400;
+  const dedupeMs = 1200;
+  const lastSuccessAt = new Map();
 
   const $ = (id)=>document.getElementById(id);
   const video = $('video');
@@ -229,7 +242,7 @@
         else stageEl.classList.remove('landscape-hint');
       });
 
-      setStatus('Camera ready. Press “Capture & scan” or enable Continuous.', 'warn');
+      setStatus('Camera ready. Tap the button on the video or enable Continuous.', 'warn');
     }catch(err){
       console.error(err);
       setStatus(`Camera error: ${err.name||'Unknown'} — ${err.message||''}. Check permissions.`, 'err');
@@ -258,7 +271,6 @@
 
   // ------- Decode (BarcodeDetector → Quagga) -------
   async function decodeFromCanvas(cnv){
-    // Native path (fast)
     if('BarcodeDetector' in window){
       try{
         const supported = await window.BarcodeDetector.getSupportedFormats?.() || [];
@@ -269,9 +281,8 @@
           const res = await det.detect(cnv);
           if(res && res.length){ return res[0].rawValue || ''; }
         }
-      }catch(e){ /* fall through */ }
+      }catch(e){ /* fallback */ }
     }
-    // Fallback (robust, a bit slower)
     const code = await new Promise((resolve)=>{
       Quagga.decodeSingle({
         src: cnv.toDataURL('image/png'),
@@ -299,7 +310,7 @@
       setStatus(`Capture failed: ${e.message}`, 'err');
     }
   }
-  $('btn-capture').addEventListener('click', captureAndScan);
+  captureBtn.addEventListener('click', captureAndScan);
 
   // ------- Continuous mode -------
   async function tickContinuous(){
@@ -347,16 +358,17 @@
     if(route !== undefined){
       setStatus(`Route: ${route}`, 'ok');
       toast(`✔ ${code} → ${route}`, 'ok');
-      beep(); vibrate();
+      if($('beep').checked){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(), g=ctx.createGain(); o.type='square'; o.frequency.value=880; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime+0.01); o.start(); setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 110);}catch(e){} }
+      if($('vibrate').checked && navigator.vibrate) navigator.vibrate(50);
       addSuccess(code, route);
     }else{
       setStatus('Code not found in CSV.', 'err');
       toast(`✖ ${code} not found`, 'err');
-      beep(); // not logged
+      if($('beep').checked){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(), g=ctx.createGain(); o.type='square'; o.frequency.value=440; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime+0.01); o.start(); setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 110);}catch(e){} }
     }
   }
 
-  // Manual lookup (also success-only history)
+  // Manual lookup
   $('btn-lookup').addEventListener('click', ()=>{
     const v = normalize($('manual').value);
     if(!v) return;
