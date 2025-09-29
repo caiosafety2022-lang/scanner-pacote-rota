@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Photo Scan → Route (1D Barcodes)</title>
+<title>Live Camera • Capture or Continuous → Route</title>
 <link rel="preconnect" href="https://unpkg.com"/>
 <style>
   :root{--bg:#0b0f14;--card:#121822;--ink:#e6edf3;--muted:#9fb0c8;--ok:#1db954;--err:#ff5c5c;--accent:#2d9cdb}
@@ -11,12 +11,13 @@
   body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0f14,#0f1622);color:var(--ink)}
   .wrap{max-width:1100px;margin:0 auto;padding:20px}
   h1{font-size:20px;margin:0 0 10px}
-  .card{background:var(--card);border:1px solid #1d2838;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
   .grid{display:grid;gap:16px}
-  @media(min-width:1000px){.grid{grid-template-columns:1.4fr .6fr}}
+  @media(min-width:1000px){.grid{grid-template-columns:1.2fr .8fr}}
+  .card{background:var(--card);border:1px solid #1d2838;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  input[type=file],button,.pill,input[type=text]{border-radius:12px;border:1px solid #2a3750;background:#0c121b;color:var(--ink);padding:10px 12px}
+  input[type=file],button,input[type=text],label.pill{border-radius:12px;border:1px solid #2a3750;background:#0c121b;color:var(--ink);padding:10px 12px}
   button.primary{background:var(--accent);border:none;color:#fff;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.55;cursor:not-allowed}
   .status{margin-top:10px;border-radius:12px;padding:12px;font-weight:700}
   .ok{background:rgba(29,185,84,.14);border:1px solid rgba(29,185,84,.35)}
   .err{background:rgba(255,92,92,.14);border:1px solid rgba(255,92,92,.35)}
@@ -25,30 +26,30 @@
   .hint{font-size:13px;color:var(--muted)}
   .table{width:100%;border-collapse:collapse;margin-top:8px}
   .table th,.table td{border-bottom:1px solid #243043;padding:6px;text-align:left}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#0c121b;border:1px solid #2a3650;color:#9fb0c8;font-size:12px}
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;min-width:260px;max-width:90vw;padding:12px 14px;border-radius:12px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.35);z-index:9999}
   .toast.ok{background:rgba(29,185,84,.98);color:#fff}
   .toast.err{background:rgba(255,92,92,.98);color:#fff}
   video{width:100%;border-radius:12px;background:#000}
   .stage{position:relative}
   .stage.landscape-hint::after{
-    content:'Rotate your phone to landscape for better 1D scanning';
-    position:absolute;left:50%;top:10px;transform:translateX(-50%);font-size:12px;
-    background:rgba(0,0,0,.55);padding:6px 10px;border-radius:999px
+    content:'Rotate to landscape for better 1D scanning';
+    position:absolute;left:50%;top:10px;transform:translateX(-50%);
+    font-size:12px;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:999px
   }
-  .badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#0c121b;border:1px solid #2a3650;color:#9fb0c8;font-size:12px}
 </style>
 <!-- CSV -->
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-<!-- Quagga2 fallback for still-image decoding -->
+<!-- Quagga2 (fallback decode from canvas / single-frame) -->
 <script src="https://unpkg.com/@ericblade/quagga2@2.0.0/dist/quagga.min.js"></script>
 </head>
 <body>
 <div class="wrap">
-  <h1>Photo Scan → Route (1D)</h1>
-  <div class="muted">CSV (2 columns): <b>A = Package ID</b>, <b>B = Route ID</b>. Take a photo and then scan it. 1D formats: Code128/39, EAN/UPC, ITF, Codabar. (QR supported too.)</div>
+  <h1>Live Camera • Capture or Continuous → Route</h1>
+  <div class="muted">CSV (2 columns): <b>A = Package ID</b>, <b>B = Route ID</b>. Camera stays open. Press <b>Capture</b> to scan current frame, or enable <b>Continuous</b> (OFF by default). Only successful scans are logged.</div>
 
   <div class="grid">
-    <!-- Left -->
+    <!-- Left: camera + actions -->
     <section class="card">
       <div class="row">
         <div>
@@ -60,10 +61,12 @@
 
       <div class="row" style="margin-top:8px">
         <button id="btn-start" class="primary">Start camera</button>
-        <button id="btn-capture">📸 Capture & scan</button>
-        <label class="pill"><input id="file-input" type="file" accept="image/*" capture="environment" /> Upload photo & scan</label>
-        <button id="btn-stop">Stop camera</button>
-        <span id="counter" class="badge">0 scanned</span>
+        <button id="btn-capture" disabled>📸 Capture & scan</button>
+        <button id="btn-stop">Stop</button>
+        <label class="pill"><input type="checkbox" id="toggle-cont" /> Continuous mode (auto-scan)</label>
+        <label class="pill"><input type="checkbox" id="beep" checked/> Beep</label>
+        <label class="pill"><input type="checkbox" id="vibrate" checked/> Vibrate</label>
+        <span id="successCount" class="badge">0 successes</span>
       </div>
 
       <div class="card stage" id="stage" style="margin-top:12px;padding:8px">
@@ -71,7 +74,7 @@
         <canvas id="canvas" style="display:none"></canvas>
       </div>
 
-      <div id="status" class="status warn">Waiting for photo…</div>
+      <div id="status" class="status warn">Load the CSV, then start the camera.</div>
 
       <div class="row" style="margin-top:10px">
         <input id="manual" type="text" placeholder="Or paste a Package ID" />
@@ -79,12 +82,12 @@
       </div>
     </section>
 
-    <!-- Right -->
+    <!-- Right: data & success history -->
     <aside class="card">
       <div class="row" style="justify-content:space-between">
         <div>
           <strong>Loaded data</strong>
-          <div class="hint">Up to 5 examples</div>
+          <div class="hint">First 5 rows</div>
         </div>
         <div class="muted"><span id="count">0</span> records</div>
       </div>
@@ -94,37 +97,43 @@
       </table>
 
       <div style="margin-top:16px">
-        <strong>Recent history</strong>
-        <div class="hint">Last 15 scans</div>
+        <strong>Successful scans</strong>
+        <div class="hint">Last 20 (errors are not logged)</div>
         <table class="table" id="history">
-          <thead><tr><th>Time</th><th>Code</th><th>Route</th><th>Status</th></tr></thead>
+          <thead><tr><th>Time</th><th>Code</th><th>Route</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </aside>
-  </div>
-
-  <div class="hint" style="margin-top:10px">
-    Tips: hold phone in <b>landscape</b>, fill the frame with the barcode, and keep lighting even.
   </div>
 </div>
 
 <div id="toast" class="toast" style="display:none"></div>
 
 <script>
-  // --- State ---
-  let indexMap = new Map();   // package -> route
-  let videoStream = null;
-  let scannedCount = 0;
-  let history = [];
+  // ------- State -------
+  let map = new Map();         // package -> route
+  let okHistory = [];          // success-only
+  let successCount = 0;
+  let stream = null;
+  let videoReady = false;
 
-  const $ = (id) => document.getElementById(id);
+  let continuousOn = false;
+  let scanningBusy = false;
+  let contTimer = null;
+  const contIntervalMs = 400;      // scan cadence in Continuous mode
+  const dedupeMs = 1200;           // avoid same success within this window
+  const lastSuccessAt = new Map(); // code -> ts
+
+  const $ = (id)=>document.getElementById(id);
+  const video = $('video');
+  const canvas = $('canvas');
   const statusEl = $('status');
   const toastEl = $('toast');
-  const videoEl = $('video');
-  const canvasEl = $('canvas');
+  const captureBtn = $('btn-capture');
   const stageEl = $('stage');
 
+  // ------- UI helpers -------
   function setStatus(msg, kind='warn'){
     statusEl.className = 'status ' + kind;
     statusEl.textContent = msg;
@@ -133,9 +142,10 @@
     toastEl.textContent = msg;
     toastEl.className = 'toast ' + kind;
     toastEl.style.display = 'block';
-    setTimeout(()=> toastEl.style.display='none', 1400);
+    setTimeout(()=> toastEl.style.display='none', 1200);
   }
   function beep(){
+    if(!$('beep').checked) return;
     try{
       const ctx = new (window.AudioContext||window.webkitAudioContext)();
       const o = ctx.createOscillator(), g = ctx.createGain();
@@ -143,231 +153,216 @@
       g.gain.setValueAtTime(0.0001, ctx.currentTime);
       g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime+0.01);
       o.start();
-      setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 120);
+      setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(); ctx.close(); }, 110);
     }catch(e){}
   }
-
-  function renderPreview(rows){
-    const tb = $('preview').querySelector('tbody'); tb.innerHTML='';
-    rows.slice(0,5).forEach(r=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${r.pkg}</td><td>${r.route}</td>`;
-      tb.appendChild(tr);
-    });
-    $('count').textContent = indexMap.size;
-  }
-  function renderHistory(){
-    const tb = $('history').querySelector('tbody'); tb.innerHTML='';
-    history.slice(-15).reverse().forEach(h=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${new Date(h.t).toLocaleTimeString()}</td><td>${h.code}</td><td>${h.route||'-'}</td><td>${h.ok?'OK':'ERROR'}</td>`;
-      tb.appendChild(tr);
-    });
-    $('counter').textContent = `${scannedCount} scanned`;
-  }
-
+  function vibrate(){ if($('vibrate').checked && navigator.vibrate) navigator.vibrate(50); }
   function normalize(x){ return String(x||'').trim(); }
 
-  // --- CSV load (A = package, B = route) ---
+  // ------- CSV load (A=package, B=route) -------
   $('csv').addEventListener('change', (e)=>{
-    const file = e.target.files?.[0]; if(!file) return;
-    Papa.parse(file, {
+    const f = e.target.files?.[0]; if(!f) return;
+    Papa.parse(f, {
       complete: (res)=>{
-        const data = res.data.filter(r=>r && r.length && r.some(c=>String(c).trim()!==''));
-        if(!data.length){ setStatus('CSV is empty.', 'err'); return; }
-        const first = data[0];
-        const looksLikeHeader = first.some(x => isNaN(Number(String(x).trim())) && String(x).trim().length>0);
-        const rows = looksLikeHeader ? data.slice(1) : data;
-        indexMap = new Map();
+        const rows = res.data.filter(r=>r && r.length && r.some(c=>String(c).trim()!==''));
+        if(!rows.length){ setStatus('CSV is empty.', 'err'); return; }
+        const first = rows[0];
+        const hasHeader = first.some(x => isNaN(Number(String(x).trim())) && String(x).trim().length>0);
+        const data = hasHeader ? rows.slice(1) : rows;
+
+        map.clear();
         const sample=[];
-        rows.forEach(r=>{
-          const pkg = normalize(r[0]), route = normalize(r[1]);
-          if(pkg){ indexMap.set(pkg, route||''); if(sample.length<5) sample.push({pkg, route}); }
-        });
-        renderPreview(sample);
-        setStatus('CSV loaded. Take a photo then scan.', 'ok');
+        for(const r of data){
+          const pkg = normalize(r[0]), rt = normalize(r[1]);
+          if(pkg){ map.set(pkg, rt||''); if(sample.length<5) sample.push({pkg, rt}); }
+        }
+        const tb = $('preview').querySelector('tbody'); tb.innerHTML='';
+        for(const s of sample){
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${s.pkg}</td><td>${s.rt}</td>`;
+          tb.appendChild(tr);
+        }
+        $('count').textContent = map.size;
+        setStatus('CSV loaded. Start the camera.', 'ok');
       },
       error: ()=> setStatus('Failed to read CSV.', 'err')
     });
   });
 
-  // --- Camera start/stop (landscape preference) ---
+  // ------- Camera start/stop (landscape) -------
+  function waitForVideoReady(video, timeout=8000){
+    return new Promise((resolve, reject)=>{
+      if(video.readyState >= 2 && video.videoWidth && video.videoHeight) return resolve();
+      let done=false;
+      const to = setTimeout(()=>{ if(done) return; done=true; reject(new Error('Video not ready (timeout)')); }, timeout);
+      function onReady(){
+        if(done) return;
+        if(video.videoWidth && video.videoHeight){ done=true; clearTimeout(to); cleanup(); resolve(); }
+      }
+      function cleanup(){ video.removeEventListener('loadedmetadata', onReady); video.removeEventListener('canplay', onReady); }
+      video.addEventListener('loadedmetadata', onReady);
+      video.addEventListener('canplay', onReady);
+    });
+  }
   async function startCamera(){
+    captureBtn.disabled = true; videoReady = false;
     try{
-      // Hint: try to lock landscape (supported on some browsers)
-      try{
-        if(screen.orientation && screen.orientation.lock){
-          await screen.orientation.lock('landscape');
-        }
-      }catch(e){ /* iOS Safari/Chrome may not support orientation lock */ }
-
-      // Prefer 16:9 landscape stream
-      const constraints = {
-        video: {
-          facingMode: { ideal:'environment' },
-          width: { ideal: 1920 },
-          height:{ ideal: 1080 },
-          aspectRatio: { ideal: 16/9 }
+      try{ if(screen.orientation && screen.orientation.lock){ await screen.orientation.lock('landscape'); } }catch(e){}
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{
+          facingMode:{ ideal:'environment' },
+          width:{ ideal:1920 }, height:{ ideal:1080 },
+          aspectRatio:{ ideal:16/9 }
         },
         audio:false
-      };
-      videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-      videoEl.srcObject = videoStream;
-      await videoEl.play();
+      });
+      video.srcObject = stream;
+      await video.play();
+      await waitForVideoReady(video);
+      videoReady = true;
+      captureBtn.disabled = false;
 
-      // Add landscape hint if device is portrait
-      if(window.innerHeight > window.innerWidth){
-        stageEl.classList.add('landscape-hint');
-      }else{
-        stageEl.classList.remove('landscape-hint');
-      }
+      if(window.innerHeight > window.innerWidth) stageEl.classList.add('landscape-hint');
+      else stageEl.classList.remove('landscape-hint');
       window.addEventListener('orientationchange', ()=>{
         if(window.innerHeight > window.innerWidth) stageEl.classList.add('landscape-hint');
         else stageEl.classList.remove('landscape-hint');
       });
 
-      setStatus('Camera ready. Tap "Capture & scan".', 'warn');
+      setStatus('Camera ready. Press “Capture & scan” or enable Continuous.', 'warn');
     }catch(err){
       console.error(err);
-      setStatus(`Camera error: ${err.name || 'Unknown'}. Check permissions.`, 'err');
+      setStatus(`Camera error: ${err.name||'Unknown'} — ${err.message||''}. Check permissions.`, 'err');
     }
   }
   async function stopCamera(){
+    await stopContinuous();
+    captureBtn.disabled = true; videoReady = false;
     try{
-      if(videoStream){ videoStream.getTracks().forEach(t=>t.stop()); videoStream=null; }
-      videoEl.pause(); videoEl.srcObject=null;
+      if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+      video.pause(); video.srcObject=null;
       setStatus('Camera stopped.', 'warn');
     }catch(e){}
   }
   $('btn-start').addEventListener('click', startCamera);
   $('btn-stop').addEventListener('click', stopCamera);
 
-  // --- Still-frame capture helper ---
+  // ------- Capture current frame to canvas -------
   function grabFrameToCanvas(){
-    if(!videoEl.videoWidth || !videoEl.videoHeight) throw new Error('Video not ready');
-    const w = videoEl.videoWidth, h = videoEl.videoHeight;
-    canvasEl.width = w; canvasEl.height = h;
-    const ctx = canvasEl.getContext('2d');
-    ctx.drawImage(videoEl, 0, 0, w, h);
-    return canvasEl;
+    if(!stream || !videoReady) throw new Error('Camera not ready');
+    const w = video.videoWidth, h = video.videoHeight;
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    return canvas;
   }
 
-  // --- Decode with BarcodeDetector (preferred) or Quagga (fallback) ---
-  async function decodeFromCanvas(canvas){
-    // Try native (works on ImageBitmap/Canvas/Video/HTMLImageElement)
+  // ------- Decode (BarcodeDetector → Quagga) -------
+  async function decodeFromCanvas(cnv){
+    // Native path (fast)
     if('BarcodeDetector' in window){
       try{
         const supported = await window.BarcodeDetector.getSupportedFormats?.() || [];
-        // Include 1D + QR
         const wanted = ['code_128','code_39','ean_13','ean_8','upc_a','upc_e','itf','codabar','qr_code'];
         const fmts = wanted.filter(f=>supported.includes(f));
         if(fmts.length){
           const det = new BarcodeDetector({ formats: fmts });
-          const res = await det.detect(canvas);
+          const res = await det.detect(cnv);
           if(res && res.length){ return res[0].rawValue || ''; }
         }
       }catch(e){ /* fall through */ }
     }
-    // Fallback: Quagga decodeSingle with data URL
-    const dataUrl = canvas.toDataURL('image/png');
+    // Fallback (robust, a bit slower)
     const code = await new Promise((resolve)=>{
       Quagga.decodeSingle({
-        src: dataUrl,
-        numOfWorkers: 0, // required in decodeSingle
+        src: cnv.toDataURL('image/png'),
+        numOfWorkers: 0,
         locate: true,
         decoder: { readers: [
           'code_128_reader','code_39_reader','ean_reader',
           'ean_8_reader','upc_reader','upc_e_reader','itf_reader','codabar_reader'
         ]}
-      }, (result)=>{
-        const v = result?.codeResult?.code || '';
-        resolve(v);
-      });
+      }, (result)=> resolve(result?.codeResult?.code || ''));
     });
     return code || '';
   }
 
+  // ------- Single capture flow -------
   async function captureAndScan(){
     try{
-      const canvas = grabFrameToCanvas();
-      await doDecode(canvas);
-    }catch(e){
-      setStatus('Capture failed. Is camera running?', 'err');
-    }
-  }
-
-  async function doDecode(sourceCanvasOrImage){
-    if(indexMap.size === 0){ setStatus('Load CSV first.', 'err'); return; }
-    setStatus('Scanning photo…', 'warn');
-    let code = '';
-    if(sourceCanvasOrImage instanceof HTMLCanvasElement){
-      code = await decodeFromCanvas(sourceCanvasOrImage);
-    }else{
-      // <img> path for uploaded file
-      const c = document.createElement('canvas');
-      c.width = sourceCanvasOrImage.naturalWidth || 1280;
-      c.height = sourceCanvasOrImage.naturalHeight || 720;
-      c.getContext('2d').drawImage(sourceCanvasOrImage, 0, 0, c.width, c.height);
-      code = await decodeFromCanvas(c);
-    }
-    if(code){
+      if(map.size===0){ setStatus('Load the CSV first.', 'err'); return; }
+      const cnv = grabFrameToCanvas();
+      setStatus('Scanning…', 'warn');
+      const code = await decodeFromCanvas(cnv);
+      if(!code){ setStatus('No barcode found. Try closer and landscape.', 'err'); toast('No barcode found', 'err'); return; }
       handleDetected(code);
-    }else{
-      setStatus('No barcode found in the photo.', 'err');
-      toast('No barcode found', 'err');
-      beep();
-      history.push({t:Date.now(), code:'(none)', route:null, ok:false});
-      scannedCount++;
-      renderHistory();
+    }catch(e){
+      setStatus(`Capture failed: ${e.message}`, 'err');
     }
   }
+  $('btn-capture').addEventListener('click', captureAndScan);
 
+  // ------- Continuous mode -------
+  async function tickContinuous(){
+    if(!continuousOn || scanningBusy || map.size===0 || !videoReady) return;
+    scanningBusy = true;
+    try{
+      const cnv = grabFrameToCanvas();
+      const code = await decodeFromCanvas(cnv);
+      if(code){
+        const now = Date.now();
+        const last = lastSuccessAt.get(code) || 0;
+        if((now - last) >= dedupeMs){ handleDetected(code); lastSuccessAt.set(code, now); }
+      }
+    }catch(e){ /* silent */ }
+    finally{ scanningBusy = false; }
+  }
+  async function startContinuous(){
+    if(continuousOn) return;
+    if(!videoReady){ setStatus('Start the camera first.', 'err'); $('toggle-cont').checked = false; return; }
+    continuousOn = true;
+    setStatus('Continuous mode: ON', 'warn');
+    contTimer = setInterval(tickContinuous, contIntervalMs);
+  }
+  async function stopContinuous(){
+    continuousOn = false;
+    if(contTimer){ clearInterval(contTimer); contTimer=null; }
+    setStatus('Continuous mode: OFF', 'warn');
+  }
+  $('toggle-cont').addEventListener('change', (e)=> e.target.checked ? startContinuous() : stopContinuous());
+
+  // ------- Result handling (success-only history) -------
+  function addSuccess(code, route){
+    okHistory.push({ t:Date.now(), code, route });
+    successCount++;
+    $('successCount').textContent = `${successCount} successes`;
+    const tb = $('history').querySelector('tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${new Date().toLocaleTimeString()}</td><td>${code}</td><td>${route}</td>`;
+    tb.insertBefore(tr, tb.firstChild);
+    while(tb.rows.length>20) tb.deleteRow(tb.rows.length-1);
+  }
   function handleDetected(codeRaw){
     const code = String(codeRaw).trim();
-    const route = indexMap.get(code);
+    const route = map.get(code);
     if(route !== undefined){
       setStatus(`Route: ${route}`, 'ok');
       toast(`✔ ${code} → ${route}`, 'ok');
-      beep();
-      if(navigator.vibrate) navigator.vibrate(60);
-      try{ const u = new SpeechSynthesisUtterance(`Route ${route}`); u.lang='en-US'; speechSynthesis.speak(u); }catch(e){}
-      history.push({t:Date.now(), code, route, ok:true});
+      beep(); vibrate();
+      addSuccess(code, route);
     }else{
       setStatus('Code not found in CSV.', 'err');
       toast(`✖ ${code} not found`, 'err');
-      beep();
-      history.push({t:Date.now(), code, route:null, ok:false});
+      beep(); // not logged
     }
-    scannedCount++;
-    renderHistory();
   }
 
-  // Capture button
-  $('btn-capture').addEventListener('click', captureAndScan);
-
-  // Upload photo & scan
-  $('file-input').addEventListener('change', (e)=>{
-    const file = e.target.files?.[0]; if(!file) return;
-    const img = new Image();
-    img.onload = ()=> doDecode(img);
-    img.onerror = ()=> setStatus('Could not load image.', 'err');
-    img.src = URL.createObjectURL(file);
-  });
-
-  // Manual lookup
+  // Manual lookup (also success-only history)
   $('btn-lookup').addEventListener('click', ()=>{
-    const v = $('manual').value.trim();
+    const v = normalize($('manual').value);
     if(!v) return;
     handleDetected(v);
   });
   $('manual').addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') $('btn-lookup').click(); });
-
-  // Basic iOS permission hint
-  if(/iPad|iPhone|iPod/.test(navigator.userAgent)){
-    // Must be HTTPS and user gesture required to start camera
-    // If user denied before, they need to re-enable in iOS Settings
-  }
 </script>
 </body>
 </html>
-
