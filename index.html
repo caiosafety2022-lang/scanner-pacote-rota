@@ -47,6 +47,12 @@
   .capture-fab:disabled{opacity:.55;cursor:not-allowed}
   .capture-fab::before{content:'📸'}
   .hint{font-size:13px;color:var(--muted)}
+
+  /* ===== KPI resumen CSV ===== */
+  .kpi-row{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-top:10px}
+  .kpi{flex:1 1 180px;background:#0c121b;border:1px solid #2a3750;border-radius:12px;padding:10px 12px}
+  .kpi .title{font-size:12px;color:#9fb0c8;margin-bottom:4px}
+  .kpi .value{font-weight:800;font-size:20px;line-height:1}
 </style>
 <!-- CSV -->
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
@@ -56,7 +62,7 @@
 <body>
 <div class="wrap">
   <h1>Cámara en vivo • Captura o Continuo → Ruta</h1>
-  <div class="muted">CSV (2 columnas): <b>A = ID del paquete</b>, <b>B = ID de la ruta</b>. La cámara queda abierta; toca <b>Capturar y escanear</b> (sobre el video) o activa <b>Continuo</b> (apagado por defecto). Solo los éxitos se guardan en el historial.</div>
+  <div class="muted">CSV (2 columnas): <b>A = referencia de manifiesto (ID del paquete)</b>, <b>B = ID de la ruta</b>. La cámara queda abierta; toca <b>Capturar y escanear</b> (sobre el video) o activa <b>Continuo</b> (apagado por defecto). Solo los éxitos se guardan en el historial.</div>
 
   <div class="grid">
     <!-- IZQUIERDA: cámara + acciones -->
@@ -68,6 +74,23 @@
           <div class="hint">Separador coma. Con o sin encabezado.</div>
         </div>
       </div>
+
+      <!-- Resumen del CSV (según tus definiciones) -->
+      <div id="csv-summary" class="kpi-row" style="display:none">
+        <div class="kpi">
+          <div class="title">Quantidad de paquetes</div>
+          <div class="value" id="kpi-unique-manifests">0</div>
+        </div>
+        <div class="kpi">
+          <div class="title">Quantidad de rutas</div>
+          <div class="value" id="kpi-unique-routes">0</div>
+        </div>
+        <div class="kpi">
+          <div class="title">Quantidad de paquetes duplicados</div>
+          <div class="value" id="kpi-dup-manifests">0</div>
+        </div>
+      </div>
+      <!-- /Resumen del CSV -->
 
       <div class="row" style="margin-top:8px">
         <button id="btn-start" class="primary">Iniciar cámara</button>
@@ -112,8 +135,9 @@
 
 <script>
   // ======= Estado =======
-  let map = new Map();          // paquete -> ruta
-  let okHistory = [];           // historial solo de éxito
+  // map: referencia de manifiesto (Col A) -> ID de ruta (Col B)
+  let map = new Map();
+  let okHistory = [];
   let successCount = 0;
 
   let stream = null;
@@ -124,7 +148,7 @@
   let contTimer = null;
   const contIntervalMs = 400;
   const dedupeMs = 1200;
-  const lastSuccessAt = new Map(); // código -> timestamp
+  const lastSuccessAt = new Map();
 
   const $ = (id)=>document.getElementById(id);
   const video = $('video');
@@ -134,7 +158,7 @@
   const captureBtn = $('btn-capture');
   const stageEl = $('stage');
 
-  // ======= Helpers UI =======
+  // ======= UI helpers =======
   function setStatus(msg, kind='warn'){
     statusEl.className = 'status ' + kind;
     statusEl.textContent = msg;
@@ -160,7 +184,7 @@
   function vibrate(){ if($('vibrate').checked && navigator.vibrate) navigator.vibrate(50); }
   function normalize(x){ return String(x||'').trim(); }
 
-  // ======= CSV (A=paquete, B=ruta) =======
+  // ======= CSV (A = referencia de manifiesto, B = ID de ruta) =======
   $('csv').addEventListener('change', (e)=>{
     const f = e.target.files?.[0]; if(!f) return;
     Papa.parse(f, {
@@ -171,12 +195,40 @@
         const hasHeader = first.some(x => isNaN(Number(String(x).trim())) && String(x).trim().length>0);
         const data = hasHeader ? rows.slice(1) : rows;
 
+        // Construcción de mapa y KPI según definiciones:
+        // - Quantidad de paquetes: referencias de manifiesto únicas (Col A)
+        // - Quantidad de rutas: IDs de ruta únicos (Col B)
+        // - Quantidad de paquetes duplicados: total de duplicados en Col A (sum of extras)
         map.clear();
+        const manifestList = [];
+        const routeList = [];
+
         for(const r of data){
-          const pkg = normalize(r[0]), rt = normalize(r[1]);
-          if(pkg){ map.set(pkg, rt||''); }
+          const manifest = normalize(r[0]); // columna A
+          const routeId  = normalize(r[1]); // columna B
+          if(manifest){
+            map.set(manifest, routeId || '');
+            manifestList.push(manifest);
+            routeList.push(routeId || '');
+          }
         }
-        setStatus(`CSV cargado (${map.size} registros). Inicie la cámara.`, 'ok');
+
+        // KPIs
+        const uniqueManifests = new Set(manifestList).size;
+        const uniqueRoutes    = new Set(routeList.filter(x=>x!=='')).size;
+
+        const freq = Object.create(null);
+        for(const m of manifestList){ freq[m] = (freq[m]||0) + 1; }
+        let dupManifests = 0;
+        for(const m in freq){ if(freq[m] > 1) dupManifests += (freq[m] - 1); }
+
+        // Pintar KPIs
+        $('kpi-unique-manifests').textContent = uniqueManifests;
+        $('kpi-unique-routes').textContent    = uniqueRoutes;
+        $('kpi-dup-manifests').textContent    = dupManifests;
+        $('csv-summary').style.display = 'flex';
+
+        setStatus(`CSV cargado (${uniqueManifests} paquetes únicos, ${uniqueRoutes} rutas). Inicie la cámara.`, 'ok');
       },
       error: ()=> setStatus('Error al leer el CSV.', 'err')
     });
@@ -211,10 +263,8 @@
     captureBtn.disabled = true; videoReady = false;
 
     try{
-      // Intentar bloquear horizontal (no todos los iOS lo permiten)
       try{ if(screen.orientation && screen.orientation.lock){ await screen.orientation.lock('landscape'); } }catch(e){}
 
-      // Etapa 1: pedir permiso y abrir cámara trasera por facingMode (dispara el pop-up)
       let tmpStream = await navigator.mediaDevices.getUserMedia({
         video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 }, aspectRatio:{ ideal:16/9 } },
         audio:false
@@ -222,7 +272,6 @@
       video.srcObject = tmpStream;
       await video.play();
 
-      // Etapa 2: ya con permiso, elegir deviceId "back" y reiniciar si corresponde
       const backId = await pickBackCameraDeviceId();
       if(backId){
         const currentTrack = tmpStream.getVideoTracks()[0];
@@ -241,7 +290,6 @@
         }
       }
 
-      // Guardar stream definitivo
       stream = tmpStream;
       await waitForVideoReady(video);
       videoReady = true;
@@ -285,7 +333,6 @@
 
   // ======= Decodificar (BarcodeDetector → Quagga2) =======
   async function decodeFromCanvas(cnv){
-    // Rápido: nativo
     if('BarcodeDetector' in window){
       try{
         const supported = await window.BarcodeDetector.getSupportedFormats?.() || [];
@@ -298,7 +345,6 @@
         }
       }catch(e){ /* fallback */ }
     }
-    // Robusto: Quagga2 decodeSingle
     const code = await new Promise((resolve)=>{
       Quagga.decodeSingle({
         src: cnv.toDataURL('image/png'),
